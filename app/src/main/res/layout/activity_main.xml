@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0f0f0f"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Header -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="SMS Injector"
+            android:textColor="#64b5f6"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="4dp"/>
+
+        <TextView
+            android:id="@+id/tvStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Checking root…"
+            android:textColor="#666666"
+            android:textSize="12sp"
+            android:layout_marginBottom="20dp"/>
+
+        <!-- Thread card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card_bg"
+            android:padding="16dp"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="THREAD"
+                android:textColor="#666666"
+                android:textSize="11sp"
+                android:letterSpacing="0.08"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- Segmented control -->
+            <RadioGroup
+                android:id="@+id/rgMode"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:background="@drawable/seg_bg"
+                android:layout_marginBottom="14dp">
+
+                <RadioButton
+                    android:id="@+id/rbNew"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="New / auto-create"
+                    android:button="@null"
+                    android:gravity="center"
+                    android:padding="10dp"
+                    android:textColor="@drawable/seg_text_color"
+                    android:background="@drawable/seg_item_bg"
+                    android:checked="true"
+                    android:textSize="13sp"/>
+
+                <RadioButton
+                    android:id="@+id/rbExisting"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Existing thread"
+                    android:button="@null"
+                    android:gravity="center"
+                    android:padding="10dp"
+                    android:textColor="@drawable/seg_text_color"
+                    android:background="@drawable/seg_item_bg"
+                    android:textSize="13sp"/>
+            </RadioGroup>
+
+            <!-- New sender block -->
+            <LinearLayout
+                android:id="@+id/layoutNewSender"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Sender name or number"
+                    android:textColor="#666666"
+                    android:textSize="12sp"
+                    android:layout_marginBottom="6dp"/>
+
+                <EditText
+                    android:id="@+id/etSender"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/input_bg"
+                    android:textColor="#e8e8e8"
+                    android:textColorHint="#444444"
+                    android:hint="e.g. tazkarti"
+                    android:padding="11dp"
+                    android:textSize="15sp"
+                    android:inputType="text"
+                    android:singleLine="true"/>
+            </LinearLayout>
+
+            <!-- Existing thread block -->
+            <LinearLayout
+                android:id="@+id/layoutExisting"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/tvThreadCount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Pick thread"
+                    android:textColor="#666666"
+                    android:textSize="12sp"
+                    android:layout_marginBottom="6dp"/>
+
+                <Spinner
+                    android:id="@+id/spinnerThreads"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/input_bg"
+                    android:padding="4dp"
+                    android:popupBackground="#1a1a1a"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Message card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/card_bg"
+            android:padding="16dp"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="MESSAGE"
+                android:textColor="#666666"
+                android:textSize="11sp"
+                android:letterSpacing="0.08"
+                android:layout_marginBottom="12dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Body"
+                android:textColor="#666666"
+                android:textSize="12sp"
+                android:layout_marginBottom="6dp"/>
+
+            <EditText
+                android:id="@+id/etBody"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="130dp"
+                android:gravity="top|start"
+                android:background="@drawable/input_bg"
+                android:textColor="#e8e8e8"
+                android:textColorHint="#444444"
+                android:hint="Type the message…"
+                android:padding="11dp"
+                android:textSize="15sp"
+                android:inputType="textMultiLine"
+                android:layout_marginBottom="14dp"/>
+
+            <!-- Date / Time row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:layout_marginEnd="8dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Date"
+                        android:textColor="#666666"
+                        android:textSize="12sp"
+                        android:layout_marginBottom="6dp"/>
+
+                    <Button
+                        android:id="@+id/btnDate"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/input_bg"
+                        android:textColor="#e8e8e8"
+                        android:textSize="14sp"
+                        android:padding="11dp"
+                        style="?attr/borderlessButtonStyle"/>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Time"
+                        android:textColor="#666666"
+                        android:textSize="12sp"
+                        android:layout_marginBottom="6dp"/>
+
+                    <Button
+                        android:id="@+id/btnTime"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/input_bg"
+                        android:textColor="#e8e8e8"
+                        android:textSize="14sp"
+                        android:padding="11dp"
+                        style="?attr/borderlessButtonStyle"/>
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Inject button -->
+        <Button
+            android:id="@+id/btnInject"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Inject SMS"
+            android:textColor="#000000"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:backgroundTint="#64b5f6"
+            android:padding="15dp"
+            android:layout_marginBottom="14dp"/>
+
+        <!-- Result -->
+        <TextView
+            android:id="@+id/tvResult"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="14dp"
+            android:textSize="14sp"
+            android:lineSpacingMultiplier="1.5"
+            android:visibility="gone"
+            android:layout_marginBottom="20dp"/>
+
+    </LinearLayout>
+</ScrollView>
