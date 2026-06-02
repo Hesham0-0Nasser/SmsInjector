@@ -1,12 +1,11 @@
 package com.smsinjector
 
 import android.util.Base64
-import com.topjohnwu.superuser.Shell
 
 object Injector {
 
-    private val MMS_DB   = "/data/data/com.android.providers.telephony/databases/mmssms.db"
-    private val BUGLE_DB = "/data/data/com.google.android.apps.messaging/databases/bugle_db"
+    private const val MMS_DB   = "/data/data/com.android.providers.telephony/databases/mmssms.db"
+    private const val BUGLE_DB = "/data/data/com.google.android.apps.messaging/databases/bugle_db"
 
     private val SQLITE3_PATHS = listOf(
         "/data/adb/modules/PixelXpert/sqlite3",
@@ -14,68 +13,75 @@ object Injector {
         "/system/xbin/sqlite3",
         "/data/local/tmp/sqlite3"
     )
-
     private val SMS_PACKAGES = listOf(
         "com.google.android.apps.messaging",
         "com.samsung.android.messaging",
         "com.android.mms"
     )
-
     private val FTS_TRIGGER = """
         CREATE TRIGGER sms_words_update AFTER UPDATE ON sms
         BEGIN UPDATE words SET index_text = NEW.body
         WHERE (source_id=NEW._id AND table_to_use=1); END;
     """.trimIndent()
 
-    // ── Internal helpers ──────────────────────────────────────────────────────
+    var sq3: String = ""; private set
+    var smsPkg: String = ""; private set
+    var isGoogleMessages: Boolean = false; private set
 
-    private fun su(cmd: String): Shell.Result =
-        Shell.cmd("export PATH=/system/bin:/system/xbin:/sbin:\$PATH; $cmd").exec()
+    // ── Root shell helper ─────────────────────────────────────────────────────
 
-    private fun sqlExec(db: String, sql: String): Shell.Result {
+    private fun su(cmd: String): Pair<Int, String> {
+        return try {
+            val fullCmd = "export PATH=/system/bin:/system/xbin:/sbin:\$PATH; $cmd"
+            val p = ProcessBuilder("su", "-c", fullCmd)
+                .redirectErrorStream(true)
+                .start()
+            val out = p.inputStream.bufferedReader().readText().trim()
+            val code = p.waitFor()
+            Pair(code, out)
+        } catch (e: Exception) {
+            Pair(-1, e.message ?: "exception")
+        }
+    }
+
+    // Encode SQL as base64, have root write + execute it, then clean up.
+    // This avoids all file-permission issues between the app user and root.
+    private fun sqlExec(db: String, sql: String): Pair<Int, String> {
         val b64 = Base64.encodeToString(sql.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
-        val cmd = "echo $b64 | base64 -d > /data/local/tmp/.si.sql " +
-                  "&& $sq3 $db < /data/local/tmp/.si.sql; " +
-                  "rc=\$?; rm -f /data/local/tmp/.si.sql; exit \$rc"
+        val cmd = "echo $b64 | base64 -d > /data/local/tmp/.si.sql" +
+                  " && $sq3 $db < /data/local/tmp/.si.sql;" +
+                  " rc=\$?; rm -f /data/local/tmp/.si.sql; exit \$rc"
         return su(cmd)
     }
 
     private fun sqlRows(db: String, query: String): List<List<String>> {
         val b64 = Base64.encodeToString("$query;".toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
-        val cmd = "echo $b64 | base64 -d > /data/local/tmp/.sr.sql " +
-                  "&& $sq3 $db < /data/local/tmp/.sr.sql; " +
-                  "rc=\$?; rm -f /data/local/tmp/.sr.sql; exit \$rc"
-        val result = su(cmd)
-        if (result.code != 0) return emptyList()
-        return result.out
-            .filter { it.isNotBlank() }
-            .map { it.split("|") }
+        val cmd = "echo $b64 | base64 -d > /data/local/tmp/.sr.sql" +
+                  " && $sq3 $db < /data/local/tmp/.sr.sql;" +
+                  " rc=\$?; rm -f /data/local/tmp/.sr.sql; exit \$rc"
+        val (code, out) = su(cmd)
+        if (code != 0 || out.isBlank()) return emptyList()
+        return out.lines().filter { it.isNotBlank() }.map { it.split("|") }
     }
 
-    private fun escape(s: String) = s.replace("'", "''")
+    private fun esc(s: String) = s.replace("'", "''")
 
-    // ── Public startup ────────────────────────────────────────────────────────
+    // ── Startup ───────────────────────────────────────────────────────────────
 
-    private var sq3: String = ""
-    private var smsPkg: String = ""
-    private var isGoogleMessages: Boolean = false
+    fun checkRoot(): Boolean {
+        val (code, out) = su("id")
+        return code == 0 && "uid=0" in out
+    }
 
-    data class StartupInfo(
-        val sq3: String,
-        val pkg: String,
-        val isGoogle: Boolean,
-        val error: String? = null
-    )
+    data class StartupInfo(val sq3: String, val pkg: String, val isGoogle: Boolean, val error: String? = null)
 
     fun detectTools(): StartupInfo {
-        // Find sqlite3
         val foundSq3 = SQLITE3_PATHS.firstOrNull { path ->
-            su("test -x $path").code == 0
-        } ?: return StartupInfo("", "", false, "sqlite3 not found on device")
+            su("test -x $path").first == 0
+        } ?: return StartupInfo("", "", false, "sqlite3 not found on device.\nInstall PixelXpert Magisk module or put a sqlite3 binary at /data/local/tmp/sqlite3")
 
-        // Find SMS app
         val foundPkg = SMS_PACKAGES.firstOrNull { pkg ->
-            su("test -d /data/data/$pkg").code == 0
+            su("test -d /data/data/$pkg").first == 0
         } ?: return StartupInfo(foundSq3, "", false, "No SMS app found")
 
         sq3 = foundSq3
@@ -86,15 +92,10 @@ object Injector {
 
     // ── Thread list ───────────────────────────────────────────────────────────
 
-    data class SmsThread(
-        val id: Int,
-        val address: String,
-        val snippet: String,
-        val date: String
-    ) {
+    data class SmsThread(val id: Int, val address: String, val snippet: String, val date: String) {
         override fun toString(): String {
-            val snip = if (snippet.length > 50) snippet.take(50) + "…" else snippet
-            return "$address — $snip ($date)"
+            val snip = snippet.take(52).let { if (snippet.length > 52) "$it…" else it }
+            return "$address  —  $snip  ($date)"
         }
     }
 
@@ -117,18 +118,15 @@ object Injector {
         }
     }
 
-    // ── Core injection ────────────────────────────────────────────────────────
+    // ── Injection ─────────────────────────────────────────────────────────────
 
     data class InjectResult(val ok: Boolean, val message: String)
 
     fun getOrCreateThreadId(sender: String): Int? {
-        val result = su("content query --uri 'content://mms-sms/threadID?recipient=$sender'")
-        val out = result.out.joinToString("\n")
+        val (_, out) = su("content query --uri 'content://mms-sms/threadID?recipient=$sender'")
         if ("_id=" in out) {
             out.replace(",", " ").split("\\s+".toRegex()).forEach { part ->
-                if (part.startsWith("_id=")) {
-                    return part.removePrefix("_id=").trim().toIntOrNull()
-                }
+                if (part.startsWith("_id=")) return part.removePrefix("_id=").trim().toIntOrNull()
             }
         }
         return null
@@ -144,41 +142,37 @@ object Injector {
 
     fun inject(sender: String, body: String, tsMs: Long, threadId: Int): InjectResult {
         val errors = mutableListOf<String>()
-        val bodySq  = escape(body)
-        val senderSq = escape(sender)
-        val snipSq  = escape(body.take(100))
+        val bodySq   = esc(body)
+        val senderSq = esc(sender)
+        val snipSq   = esc(body.take(100))
 
-        // 1. Insert into mmssms.db
-        val mmsSql = """
+        // 1. mmssms.db
+        val (mmsCode, mmsOut) = sqlExec(MMS_DB, """
             DROP TRIGGER IF EXISTS sms_words_update;
             INSERT INTO sms (address, body, date, date_sent, type, read, seen, status, thread_id)
               VALUES ('$senderSq', '$bodySq', $tsMs, $tsMs, 1, 0, 0, -1, $threadId);
             $FTS_TRIGGER
             UPDATE threads SET date=$tsMs, snippet='$snipSq' WHERE _id=$threadId;
-        """.trimIndent()
+        """.trimIndent())
+        if (mmsCode != 0) errors += "mmssms: $mmsOut"
 
-        val mmsResult = sqlExec(MMS_DB, mmsSql)
-        if (mmsResult.code != 0) errors += "mmssms: ${mmsResult.out.joinToString()}"
-
-        // Get the new sms _id
         val smsIdRows = sqlRows(MMS_DB,
             "SELECT _id FROM sms WHERE thread_id=$threadId ORDER BY _id DESC LIMIT 1")
         val smsId = smsIdRows.firstOrNull()?.firstOrNull()?.trim()
 
-        // 2. Insert into bugle_db (Google Messages only)
+        // 2. bugle_db (Google Messages only)
         if (isGoogleMessages && smsId != null) {
             val convRows = sqlRows(BUGLE_DB,
                 "SELECT _id, current_self_id FROM conversations WHERE sms_thread_id=$threadId LIMIT 1")
-            val convId = convRows.firstOrNull()?.getOrNull(0)?.trim()
-            val selfId = convRows.firstOrNull()?.getOrNull(1)?.trim() ?: "4"
+            val convId  = convRows.firstOrNull()?.getOrNull(0)?.trim()
+            val selfId  = convRows.firstOrNull()?.getOrNull(1)?.trim() ?: "4"
 
             if (convId == null) {
-                errors += "bugle: no conversation for this thread — open it in Messages once, then retry"
+                errors += "bugle: no conversation for this thread — open it in Messages first, then retry"
             } else {
-                // Ensure participant exists
-                val bodySqB = escape(body)
-                val senderSqB = escape(sender)
-                val snipSqB = escape(body.take(80))
+                val senderSqB = esc(sender)
+                val bodySqB   = esc(body)
+                val snipSqB   = esc(body.take(80))
 
                 val partRows = sqlRows(BUGLE_DB,
                     "SELECT _id FROM participants WHERE normalized_destination='$senderSqB' LIMIT 1")
@@ -196,7 +190,7 @@ object Injector {
                 if (pid == null) {
                     errors += "bugle: could not create participant"
                 } else {
-                    val bugleSql = """
+                    val (bCode, bOut) = sqlExec(BUGLE_DB, """
                         INSERT INTO messages (
                           conversation_id, sender_id,
                           sent_timestamp, queue_insert_timestamp, received_timestamp,
@@ -213,10 +207,8 @@ object Injector {
                               sort_timestamp=$tsMs,
                               snippet_text='$snipSqB'
                           WHERE _id=$convId;
-                    """.trimIndent()
-
-                    val bugleResult = sqlExec(BUGLE_DB, bugleSql)
-                    if (bugleResult.code != 0) errors += "bugle: ${bugleResult.out.joinToString()}"
+                    """.trimIndent())
+                    if (bCode != 0) errors += "bugle: $bOut"
                 }
             }
         }
@@ -227,9 +219,8 @@ object Injector {
         su("monkey -p $smsPkg -c android.intent.category.LAUNCHER 1")
 
         return if (errors.isEmpty()) {
-            val when_ = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
-                .format(java.util.Date(tsMs))
-            InjectResult(true, "Done.\nFrom: $sender\nThread: $threadId\nTime: $when_\nMessages restarted.")
+            val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+            InjectResult(true, "Done.\nFrom: $sender\nThread: $threadId\nTime: ${fmt.format(java.util.Date(tsMs))}\nMessages restarted.")
         } else {
             InjectResult(false, "Errors:\n• " + errors.joinToString("\n• "))
         }
