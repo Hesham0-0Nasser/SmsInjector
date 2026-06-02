@@ -10,6 +10,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.smsinjector.databinding.ActivityMainBinding
+import com.topjohnwu.superuser.Shell
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -72,7 +73,8 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             // Step 1 — request root (triggers the Magisk "Grant" dialog)
-            val hasRoot = withContext(Dispatchers.IO) { Injector.checkRoot() }
+            // Shell.rootAccess() triggers the Magisk "Grant" dialog properly
+            val hasRoot = withContext(Dispatchers.IO) { Shell.rootAccess() }
             if (!hasRoot) {
                 binding.tvStatus.text = "Root denied — open Magisk, grant root to SMS Injector, then reopen the app"
                 return@launch
